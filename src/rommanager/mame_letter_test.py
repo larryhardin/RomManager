@@ -1,10 +1,8 @@
-"""Scan a MAME ROM directory (.zip files) and test the first game per letter/number."""
+"""Build checks from mameRomList.txt: one representative ROM per letter/number."""
 
 from __future__ import annotations
 
-import hashlib
 import logging
-import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -12,75 +10,76 @@ from .matcher import RomMatcher
 
 log = logging.getLogger(__name__)
 
-ALPHABET_AND_NUMBERS = [str(i) for i in range(1, 10)] + [chr(c) for c in range(ord("a"), ord("z") + 1)]
+# Digits 1-9 then a-z (lowercase)
+CHARS = [str(i) for i in range(1, 10)] + [chr(c) for c in range(ord("a"), ord("z") + 1)]
+
+DEFAULT_LIST = Path(__file__).resolve().parents[2] / "mameRomList.txt"
 
 
-def _crc32_of_zip_contents(zip_path: Path) -> str | None:
-    """Compute CRC32 of the concatenated contents of a .zip (simple stand-in for set matching)."""
-    try:
-        with zipfile.ZipFile(zip_path, "r") as zf:
-            h = hashlib.sha1()  # use SHA1 for uniqueness; CRC32 alone can collide
-            for info in sorted(zf.infolist(), key=lambda i: i.filename):
-                if info.is_dir():
-                    continue
-                h.update(zf.read(info.filename))
-            return h.hexdigest().upper()
-    except (zipfile.BadZipFile, OSError) as exc:
-        log.warning("Could not read %s: %s", zip_path, exc)
-        return None
+def load_rom_list(path: str | Path | None = None) -> list[str]:
+    """Load ROM filenames from mameRomList.txt (one .zip per line)."""
+    path = Path(path) if path else DEFAULT_LIST
+    if not path.is_file():
+        raise FileNotFoundError(f"ROM list not found: {path}")
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    return [ln.strip() for ln in lines if ln.strip() and ln.strip().lower().endswith(".zip")]
 
 
-def test_first_mame_rom_per_letter(
-    rom_dir: str | Path,
+def first_rom_per_character(rom_names: list[str]) -> dict[str, list[str]]:
+    """Group ROM names by first character (case-insensitive) and return only those in CHARS."""
+    by_char: dict[str, list[str]] = {c: [] for c in CHARS}
+    for name in sorted(rom_names, key=str.lower):
+        if not name:
+            continue
+        first = name[0].lower()
+        if first in by_char:
+            by_char[first].append(name)
+    return by_char
+
+
+def build_letter_checks(
+    list_path: str | Path | None = None,
     matcher: RomMatcher | None = None,
 ) -> list[dict[str, Any]]:
     """
     For each letter a-z and digit 1-9:
-      - Find .zip files starting with that character (case-insensitive).
-      - If none, log that no games start with that letter.
-      - If any, take only the first one and attempt a match (if matcher provided).
+      - If no ROMs start with that character, log it.
+      - Otherwise select only the first one (sorted) and optionally match it.
 
-    Returns a list of result dicts, one per character.
+    Returns a list of result dicts.
     """
-    rom_dir = Path(rom_dir)
-    if not rom_dir.is_dir():
-        raise FileNotFoundError(f"ROM directory not found: {rom_dir}")
-
-    zips = sorted(p for p in rom_dir.iterdir() if p.suffix.lower() == ".zip" and p.is_file())
-    by_char: dict[str, list[Path]] = {c: [] for c in ALPHABET_AND_NUMBERS}
-
-    for z in zips:
-        first = z.name[0].lower() if z.name else ""
-        if first in by_char:
-            by_char[first].append(z)
+    names = load_rom_list(list_path)
+    by_char = first_rom_per_character(names)
 
     results: list[dict[str, Any]] = []
 
-    for char in ALPHABET_AND_NUMBERS:
+    for char in CHARS:
         files = by_char[char]
         if not files:
             log.info("No games start with '%s'", char)
-            results.append({"char": char, "status": "no_games", "file": None, "matches": []})
+            results.append(
+                {"char": char, "status": "no_games", "file": None, "total_for_char": 0, "matches": []}
+            )
             continue
 
-        first_file = files[0]
-        log.info("Testing first game for '%s': %s (of %d)", char, first_file.name, len(files))
+        first = files[0]
+        log.info("Selected first game for '%s': %s (of %d)", char, first, len(files))
 
-        match_results: list[dict] = []
+        matches: list[dict] = []
         if matcher is not None:
-            # For a real MAME test we would extract CRCs of the ROMs inside the zip
-            # and look them up. Here we use a content hash as a placeholder identifier.
-            content_hash = _crc32_of_zip_contents(first_file)
-            if content_hash:
-                match_results = matcher.match(sha1=content_hash)
+            # Placeholder: real MAME matching would extract internal ROM CRCs from the zip.
+            # For now we treat the filename (without .zip) as a set name lookup if desired.
+            set_name = Path(first).stem
+            # Future: matcher.match_set(set_name) or similar
+            matches = matcher.match(sha1=set_name)  # no-op unless index has it
 
         results.append(
             {
                 "char": char,
-                "status": "tested",
-                "file": first_file.name,
+                "status": "selected",
+                "file": first,
                 "total_for_char": len(files),
-                "matches": match_results,
+                "matches": matches,
             }
         )
 
