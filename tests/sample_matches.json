@@ -1,0 +1,80 @@
+{
+  "description": "Reference test cases for RomManager. Each entry is a known hash that should match exactly one game in the indicated database/platform. These can be used to validate the matcher once DAT loading is implemented. Expand as needed.",
+  "cases": [
+    {
+      "id": "nointro-nes-smb",
+      "database": "No-Intro",
+      "platform": "Nintendo Entertainment System",
+      "game_name": "Super Mario Bros. (World)",
+      "crc32": "3337EC46",
+      "md5": "811B027EAF99C2DEF7B933C5208636DE",
+      "sha1": "EA343F4E445A9050D4B4FBAC2C77D0693B1D0922",
+      "expected_matches": 1,
+      "notes": "Common headerless or specific header variant; confirm against current DAT."
+    },
+    {
+      "id": "nointro-snes-smw",
+      "database": "No-Intro",
+      "platform": "Super Nintendo Entertainment System",
+      "game_name": "Super Mario World (USA)",
+      "crc32": "B19ED489",
+      "md5": "CDD3C8C37322978CA8669B34BC89C804",
+      "sha1": "6B47BB75D16514B6A476AA0C73A683A2A4C18765",
+      "expected_matches": 1,
+      "notes": "Headerless preferred."
+    },
+    {
+      "id": "nointro-gb-tetris",
+      "database": "No-Intro",
+      "platform": "Game Boy",
+      "game_name": "Tetris (World) (Rev 1)",
+      "crc32": "46DF91AD",
+      "md5": "982ED5D2B12A0377EB14BCDC4123744E",
+      "sha1": "74591CC9501AF93873F9A5D3EB12DA12C0723BBC",
+      "expected_matches": 1
+    },
+    {
+      "id": "redump-psx-ff7-disc1",
+      "database": "Redump",
+      "platform": "Sony PlayStation",
+      "game_name": "Final Fantasy VII (Japan) (Disc 1)",
+      "crc32": "D885CA6B",
+      "md5": "E69FFB42C2D13E902156CD50273E496D",
+      "sha1": "7F6C269DAE603CE7C0C832C897A2C320A5B9732A",
+      "expected_matches": 1,
+      "notes": "BIN track hash."
+    },
+    {
+      "id": "redump-saturn-example",
+      "database": "Redump",
+      "platform": "Sega Saturn",
+      "game_name": "3D Baseball (USA)",
+      "crc32": "E03A593A",
+      "md5": "5F33157EFD8A73DE6612A852CF1BA147",
+      "sha1": "B79890F234721DAC70FFAEC83EC8715F0F183C14",
+      "expected_matches": 1,
+      "notes": "Example from public Redump DAT."
+    },
+    {
+      "id": "mame-pacman",
+      "database": "MAME",
+      "platform": "Arcade (Pac-Man)",
+      "game_name": "pacman",
+      "crc32": "C1E6AB10",
+      "sha1": "E87E059C5BE45753F7E9F33DFF851F16D6751181",
+      "expected_matches": 1,
+      "notes": "Main CPU ROM pacman.6e. Full set verification requires all required ROMs/CHDs."
+    },
+    {
+      "id": "tosec-c64-example",
+      "database": "TOSEC",
+      "platform": "Commodore 64",
+      "game_name": "Stonysoft PD #0521 (19xx)(Stonysoft)(PD)[a]",
+      "crc32": "02D921CD",
+      "md5": "A19F808B88D892F23187E8A0274A96BC",
+      "sha1": "8BA508EFCA9B3285A32E8268FDCDC9F8EE477D78",
+      "expected_matches": 1,
+      "notes": "D64 image example."
+    }
+  ]
+}
