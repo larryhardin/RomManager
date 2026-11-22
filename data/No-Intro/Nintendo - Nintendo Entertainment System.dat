@@ -1,0 +1,12 @@
+clrmamepro (
+	name "Nintendo - Nintendo Entertainment System"
+	description "Nintendo - Nintendo Entertainment System"
+	header "No-Intro_NES.xml"
+	version 20141025-064058
+	comment "no-intro | www.no-intro.org"
+)
+
+; NOTE: Full DAT is large. This is a placeholder header.
+; Download the complete file from:
+; https://github.com/libretro-mirrors/nointro-db/blob/master/Nintendo%20-%20Nintendo%20Entertainment%20System.dat
+; or the daily pack at https://datomatic.no-intro.org/?page=download&op=daily
