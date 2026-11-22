@@ -12,7 +12,16 @@ Each case is designed so that a correct matcher (hash lookup against the corresp
 - **MAME**: Arcade (Pac-Man example)
 - **TOSEC**: Commodore 64 (example)
 
-### How to use
+### Running the tests
+
+```bash
+pip install -r requirements.txt
+pytest
+```
+
+`test_sample_matches.py` loads every case into a `RomMatcher` and asserts that looking up its hash(es) returns exactly one match with the expected metadata.
+
+### How the cases are meant to be used long-term
 1. Load the relevant DAT file(s) for the platform.
 2. Look up the provided CRC32 / MD5 / SHA1.
 3. Assert that exactly one game entry is returned and that the name matches (or is a known variant).
