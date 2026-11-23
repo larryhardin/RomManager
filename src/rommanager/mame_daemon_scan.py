@@ -21,7 +21,11 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from .config import get_mame_roms_directory, get_mame_xml_database
+# Support both "python -m rommanager.mame_daemon_scan" and "python -m src.rommanager.mame_daemon_scan"
+try:
+    from .config import get_mame_roms_directory, get_mame_xml_database
+except ImportError:
+    from rommanager.config import get_mame_roms_directory, get_mame_xml_database
 
 log = logging.getLogger(__name__)
 
