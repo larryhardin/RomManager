@@ -4,10 +4,11 @@ Requires the shell functions from your daemon script:
   - start_rom_db <xml>
   - checkrom <zippath>
 
-Pass the path to rom_daemon_threaded.sh with --daemon-script (or set it in config later).
+The daemon script path is read from data/config.json (key: mame.daemon_script)
+or can be overridden with --daemon-script.
 The script is sourced for every call so the functions are available.
 
-Paths can be supplied on the command line or read from data/config.json.
+ROM and XML paths can be supplied on the command line or read from data/config.json.
 """
 
 from __future__ import annotations
@@ -18,9 +19,17 @@ import subprocess
 from pathlib import Path
 
 try:
-    from .config import get_mame_roms_directory, get_mame_xml_database
+    from .config import (
+        get_mame_daemon_script,
+        get_mame_roms_directory,
+        get_mame_xml_database,
+    )
 except ImportError:
-    from rommanager.config import get_mame_roms_directory, get_mame_xml_database
+    from rommanager.config import (
+        get_mame_daemon_script,
+        get_mame_roms_directory,
+        get_mame_xml_database,
+    )
 
 log = logging.getLogger(__name__)
 
@@ -93,8 +102,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Scan MAME ROMs via rom_daemon in-memory array")
     parser.add_argument("rom_dir", nargs="?", type=Path, help="Directory of .zip ROM sets (or read from config)")
     parser.add_argument("xml", nargs="?", type=Path, help="Path to MAME XML (or read from config)")
-    parser.add_argument("--daemon-script", type=Path, required=True,
-                        help="Path to rom_daemon_threaded.sh (provides start_rom_db / checkrom)")
+    parser.add_argument("--daemon-script", type=Path, help="Path to rom_daemon_threaded.sh (or read from config)")
     parser.add_argument("--mover", type=Path, help="Output path for moveroms.sh (default: <rom_dir>/moveroms.sh)")
     args = parser.parse_args()
 
@@ -102,6 +110,7 @@ def main() -> None:
 
     rom_dir = args.rom_dir
     xml_path = args.xml
+    daemon_script = args.daemon_script
 
     if rom_dir is None:
         rom_dir_str = get_mame_roms_directory()
@@ -115,7 +124,13 @@ def main() -> None:
             raise SystemExit("No XML path given and none set in data/config.json")
         xml_path = Path(xml_str)
 
-    scan_with_daemon(rom_dir, xml_path, args.daemon_script, args.mover)
+    if daemon_script is None:
+        daemon_str = get_mame_daemon_script()
+        if not daemon_str:
+            raise SystemExit("No daemon script given and none set in data/config.json")
+        daemon_script = Path(daemon_str)
+
+    scan_with_daemon(rom_dir, xml_path, daemon_script, args.mover)
 
 
 if __name__ == "__main__":
