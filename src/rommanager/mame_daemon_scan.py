@@ -21,7 +21,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from rommanager.config import get_mame_roms_directory, get_mame_xml_database
+from .config import get_mame_roms_directory, get_mame_xml_database
 
 log = logging.getLogger(__name__)
 
