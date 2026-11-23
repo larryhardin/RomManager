@@ -1,0 +1,22 @@
+{
+  "description": "BIOS and other required sets that must be kept even if they fail normal matching or region checks.",
+  "files": [
+    "neogeo.zip",
+    "pgm.zip",
+    "stvbios.zip",
+    "megaplay.zip",
+    "megatech.zip",
+    "decocass.zip",
+    "cdi.zip",
+    "cdibios.zip",
+    "cdimono1.zip",
+    "cdimono2.zip",
+    "cdibios.zip",
+    "vsbios.zip",
+    "playch10.zip",
+    "nss.zip",
+    "neocd.zip",
+    "neocdz.zip",
+    "salamander.zip"
+  ]
+}
