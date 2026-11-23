@@ -1,0 +1,18 @@
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+
+# Downloaded MAME XML database files
+/data/MAME/XML/*.xml
+/data/MAME/XML/*.db
+/data/MAME/XML/*.7z
