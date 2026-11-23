@@ -8,11 +8,16 @@ Paths come from data/config.json or the command line.
 
 Sets that are not found, renamed, or (when --us-only is given) non-US
 are written to the move script.
+
+Required BIOS / special sets listed in data/MAME/requiredFiles.json are
+loaded once into a set and always kept (never checked against the DB and
+never added to the move script).
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import re
 import subprocess
@@ -34,6 +39,8 @@ except ImportError:
 
 log = logging.getLogger(__name__)
 
+REQUIRED_FILES_PATH = Path("data/MAME/requiredFiles.json")
+
 # Region markers commonly found in MAME descriptions
 _NON_US = re.compile(
     r"\b(japan|japanese|jp\b|europe|euro|pal\b|asia|korea|korean|france|french|"
@@ -44,13 +51,23 @@ _NON_US = re.compile(
 _US = re.compile(r"\b(usa|us\b|ntsc-u|america|american)\b", re.I)
 
 
+def load_required_files(path: Path = REQUIRED_FILES_PATH) -> set[str]:
+    """Load the required-files list into a set of lowercase filenames."""
+    if not path.is_file():
+        log.warning("Required files list not found: %s (continuing without it)", path)
+        return set()
+    with path.open(encoding="utf-8") as f:
+        data = json.load(f)
+    files = data.get("files", [])
+    return {name.lower() for name in files}
+
+
 def is_us_region(text: str) -> bool:
     """Return True if the description looks like a US (or untagged) release."""
     if not text:
         return False
     if _NON_US.search(text):
         return False
-    # Explicit US marker, or no region marker at all (treat as keep)
     return True
 
 
@@ -68,6 +85,9 @@ def scan_with_daemon(
     if not rom_dir.is_dir():
         raise FileNotFoundError(f"ROM directory not found: {rom_dir}")
 
+    required = load_required_files()
+    log.info("Loaded %d required/BIOS sets that will be kept", len(required))
+
     invalid_dir = rom_dir / "invalidroms"
     invalid_dir.mkdir(exist_ok=True)
     mover = mover_script or (rom_dir / "moveroms.sh")
@@ -75,15 +95,17 @@ def scan_with_daemon(
     zips = sorted(p for p in rom_dir.iterdir() if p.is_file() and p.suffix.lower() == ".zip")
     log.info("Scanning %d zip files in %s%s", len(zips), rom_dir, " (US only)" if us_only else "")
 
+    # Only query the DB for files that are not in the required list
+    to_check = [z for z in zips if z.name.lower() not in required]
+
     with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as tmp:
         tmp_path = Path(tmp.name)
         tmp.write("#!/usr/bin/env bash\n")
-        # Do not use set -u; the daemon references ROM_DB_PID before the coproc sets it
         tmp.write("set -eo pipefail\n")
         tmp.write(f"source '{daemon_script}'\n")
         tmp.write(f"start_rom_db '{xml_path}'\n")
         tmp.write("echo '===DB_READY==='\n")
-        for z in zips:
+        for z in to_check:
             tmp.write(f"echo '===CHECK==={z.name}==='\n")
             tmp.write(f"checkrom '{z}' || true\n")
         tmp.write("stop_rom_db\n")
@@ -117,9 +139,15 @@ def scan_with_daemon(
         if us_only:
             note += ", or non-US"
         script.write(f"# Moves {note} sets into {invalid_dir}\n")
+        script.write("# Required/BIOS sets listed in requiredFiles.json are kept and not listed here.\n")
         script.write("set -euo pipefail\n\n")
 
         for z in zips:
+            # Required files are always kept
+            if z.name.lower() in required:
+                log.info("REQUIRED: %s (kept, skipped DB check)", z.name)
+                continue
+
             text = results.get(z.name, "")
             lower = text.lower()
             is_clean_match = bool(text) and "[match]" in lower and "[renamed]" not in lower
