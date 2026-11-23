@@ -1,27 +1,22 @@
 """Scan a MAME ROM directory using the in-memory associative array from rom_daemon_threaded.sh.
 
-Requires:
-  - start_rom_db <xml>   (loads the XML into the session/daemon)
-  - checkrom <zippath>   (queries the in-memory array)
+Requires the shell functions from your daemon script:
+  - start_rom_db <xml>
+  - checkrom <zippath>
 
-Paths can be supplied on the command line or read from data/config.json
-(set via the UI or the config helpers).
+Pass the path to rom_daemon_threaded.sh with --daemon-script (or set it in config later).
+The script is sourced for every call so the functions are available.
 
-For every .zip:
-  - runs checkrom
-  - if not found (or no useful output), logs it and appends an mv command to moveroms.sh
-  - moveroms.sh moves the file into <rom_dir>/invalidroms/
+Paths can be supplied on the command line or read from data/config.json.
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
-import shutil
 import subprocess
 from pathlib import Path
 
-# Support both "python -m rommanager.mame_daemon_scan" and "python -m src.rommanager.mame_daemon_scan"
 try:
     from .config import get_mame_roms_directory, get_mame_xml_database
 except ImportError:
@@ -30,43 +25,42 @@ except ImportError:
 log = logging.getLogger(__name__)
 
 
-def ensure_commands() -> None:
-    for cmd in ("start_rom_db", "checkrom"):
-        if shutil.which(cmd) is None:
-            raise RuntimeError(f"Required command not found in PATH: {cmd}")
+def run_via_daemon(daemon_script: Path, bash_cmd: str) -> subprocess.CompletedProcess:
+    """Source the daemon script then run a command that uses its functions."""
+    if not daemon_script.is_file():
+        raise FileNotFoundError(f"Daemon script not found: {daemon_script}")
+    full = f"source '{daemon_script}' && {bash_cmd}"
+    return subprocess.run(
+        ["bash", "-c", full],
+        capture_output=True,
+        text=True,
+    )
 
 
-def start_database(xml_path: Path) -> None:
+def start_database(xml_path: Path, daemon_script: Path) -> None:
     if not xml_path.is_file():
         raise FileNotFoundError(f"XML file not found: {xml_path}")
     log.info("Loading XML into in-memory DB: %s", xml_path)
-    subprocess.run(["start_rom_db", str(xml_path)], check=True)
+    result = run_via_daemon(daemon_script, f"start_rom_db '{xml_path}'")
+    if result.returncode != 0:
+        raise RuntimeError(f"start_rom_db failed:\n{result.stderr or result.stdout}")
 
 
-def check_one(zip_path: Path) -> tuple[bool, str]:
-    """Return (found, raw_output)."""
-    try:
-        result = subprocess.run(
-            ["checkrom", str(zip_path)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        output = (result.stdout or "") + (result.stderr or "")
-        lower = output.lower()
-        found = bool(output.strip()) and "not found" not in lower and "no match" not in lower
-        return found, output.strip()
-    except Exception as e:
-        return False, f"checkrom error: {e}"
+def check_one(zip_path: Path, daemon_script: Path) -> tuple[bool, str]:
+    result = run_via_daemon(daemon_script, f"checkrom '{zip_path}'")
+    output = (result.stdout or "") + (result.stderr or "")
+    lower = output.lower()
+    found = result.returncode == 0 and bool(output.strip()) and "not found" not in lower and "no match" not in lower
+    return found, output.strip()
 
 
 def scan_with_daemon(
     rom_dir: Path,
     xml_path: Path,
+    daemon_script: Path,
     mover_script: Path | None = None,
 ) -> None:
-    ensure_commands()
-    start_database(xml_path)
+    start_database(xml_path, daemon_script)
 
     invalid_dir = rom_dir / "invalidroms"
     invalid_dir.mkdir(exist_ok=True)
@@ -82,7 +76,7 @@ def scan_with_daemon(
         log.info("Scanning %d zip files in %s", len(zips), rom_dir)
 
         for z in zips:
-            found, output = check_one(z)
+            found, output = check_one(z, daemon_script)
             if found:
                 log.info("%s -> %s", z.name, output.splitlines()[0] if output else "OK")
             else:
@@ -99,6 +93,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Scan MAME ROMs via rom_daemon in-memory array")
     parser.add_argument("rom_dir", nargs="?", type=Path, help="Directory of .zip ROM sets (or read from config)")
     parser.add_argument("xml", nargs="?", type=Path, help="Path to MAME XML (or read from config)")
+    parser.add_argument("--daemon-script", type=Path, required=True,
+                        help="Path to rom_daemon_threaded.sh (provides start_rom_db / checkrom)")
     parser.add_argument("--mover", type=Path, help="Output path for moveroms.sh (default: <rom_dir>/moveroms.sh)")
     args = parser.parse_args()
 
@@ -119,7 +115,7 @@ def main() -> None:
             raise SystemExit("No XML path given and none set in data/config.json")
         xml_path = Path(xml_str)
 
-    scan_with_daemon(rom_dir, xml_path, args.mover)
+    scan_with_daemon(rom_dir, xml_path, args.daemon_script, args.mover)
 
 
 if __name__ == "__main__":
