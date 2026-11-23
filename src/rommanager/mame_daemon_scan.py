@@ -54,7 +54,8 @@ def scan_with_daemon(
     with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as tmp:
         tmp_path = Path(tmp.name)
         tmp.write("#!/usr/bin/env bash\n")
-        tmp.write("set -euo pipefail\n")
+        # Do not use set -u; the daemon references ROM_DB_PID before the coproc sets it
+        tmp.write("set -eo pipefail\n")
         tmp.write(f"source '{daemon_script}'\n")
         tmp.write(f"start_rom_db '{xml_path}'\n")
         tmp.write("echo '===DB_READY==='\n")
