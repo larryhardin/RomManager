@@ -1,6 +1,6 @@
 {
   "mame": {
-    "roms_directory": "",
+    "roms_directory": "/mnt/h/Games/Emulators/tmp/mame/roms",
     "xml_database": "data/MAME/XML/mame_728_0.289.xml"
   }
 }
