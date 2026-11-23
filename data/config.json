@@ -2,6 +2,6 @@
   "mame": {
     "roms_directory": "/mnt/h/Games/Emulators/tmp/mame/roms",
     "xml_database": "data/MAME/XML/mame_728_0.289.xml",
-    "daemon_script": "rom_daemon_threaded.sh"
+    "daemon_script": "src/rommanager/rom_daemon_threaded.sh"
   }
 }
