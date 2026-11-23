@@ -4,6 +4,9 @@ Requires:
   - start_rom_db <xml>   (loads the XML into the session/daemon)
   - checkrom <zippath>   (queries the in-memory array)
 
+Paths can be supplied on the command line or read from data/config.json
+(set via the UI or the config helpers).
+
 For every .zip:
   - runs checkrom
   - if not found (or no useful output), logs it and appends an mv command to moveroms.sh
@@ -17,6 +20,8 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
+
+from rommanager.config import get_mame_roms_directory, get_mame_xml_database
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +49,6 @@ def check_one(zip_path: Path) -> tuple[bool, str]:
             check=False,
         )
         output = (result.stdout or "") + (result.stderr or "")
-        # Heuristic: treat empty or "not found" style messages as missing
         lower = output.lower()
         found = bool(output.strip()) and "not found" not in lower and "no match" not in lower
         return found, output.strip()
@@ -79,7 +83,6 @@ def scan_with_daemon(
                 log.info("%s -> %s", z.name, output.splitlines()[0] if output else "OK")
             else:
                 log.warning("NOT FOUND: %s (%s)", z.name, output or "no output")
-                # Append mv command
                 dest = invalid_dir / z.name
                 script.write(f'mv -n "{z}" "{dest}"\n')
 
@@ -90,13 +93,29 @@ def scan_with_daemon(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Scan MAME ROMs via rom_daemon in-memory array")
-    parser.add_argument("rom_dir", type=Path, help="Directory of .zip ROM sets")
-    parser.add_argument("xml", type=Path, help="Path to MAME XML (e.g. data/MAME/XML/mame_728_0.289.xml)")
+    parser.add_argument("rom_dir", nargs="?", type=Path, help="Directory of .zip ROM sets (or read from config)")
+    parser.add_argument("xml", nargs="?", type=Path, help="Path to MAME XML (or read from config)")
     parser.add_argument("--mover", type=Path, help="Output path for moveroms.sh (default: <rom_dir>/moveroms.sh)")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    scan_with_daemon(args.rom_dir, args.xml, args.mover)
+
+    rom_dir = args.rom_dir
+    xml_path = args.xml
+
+    if rom_dir is None:
+        rom_dir_str = get_mame_roms_directory()
+        if not rom_dir_str:
+            raise SystemExit("No ROM directory given and none set in data/config.json")
+        rom_dir = Path(rom_dir_str)
+
+    if xml_path is None:
+        xml_str = get_mame_xml_database()
+        if not xml_str:
+            raise SystemExit("No XML path given and none set in data/config.json")
+        xml_path = Path(xml_str)
+
+    scan_with_daemon(rom_dir, xml_path, args.mover)
 
 
 if __name__ == "__main__":
