@@ -1,11 +1,8 @@
 """Scan a MAME ROM directory using the in-memory associative array from rom_daemon_threaded.sh.
 
-Requires the shell functions from your daemon script:
-  - start_rom_db <xml>
-  - checkrom <zippath>
-
-The daemon script is sourced once and start_rom_db + all checkrom calls
-run inside the same bash process so the in-memory DB stays loaded.
+The daemon uses a bash coproc, so start_rom_db and all checkrom calls must run
+in the same shell. This writes a temporary script and executes it so the
+coproc stays alive for the entire scan.
 
 Paths come from data/config.json or the command line.
 """
@@ -15,6 +12,7 @@ from __future__ import annotations
 import argparse
 import logging
 import subprocess
+import tempfile
 from pathlib import Path
 
 try:
@@ -53,42 +51,39 @@ def scan_with_daemon(
     zips = sorted(p for p in rom_dir.iterdir() if p.is_file() and p.suffix.lower() == ".zip")
     log.info("Scanning %d zip files in %s", len(zips), rom_dir)
 
-    # Build one bash script that sources the daemon, starts the DB, and checks every zip
-    lines = [
-        "#!/usr/bin/env bash",
-        "set -euo pipefail",
-        f"source '{daemon_script}'",
-        f"start_rom_db '{xml_path}'",
-        "echo '===DB_READY==='",
-    ]
-    for z in zips:
-        # Output a delimiter + filename so we can parse the results
-        lines.append(f"echo '===CHECK==={z.name}==='")
-        lines.append(f"checkrom '{z}' || true")
+    with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+        tmp.write("#!/usr/bin/env bash\n")
+        tmp.write("set -euo pipefail\n")
+        tmp.write(f"source '{daemon_script}'\n")
+        tmp.write(f"start_rom_db '{xml_path}'\n")
+        tmp.write("echo '===DB_READY==='\n")
+        for z in zips:
+            tmp.write(f"echo '===CHECK==={z.name}==='\n")
+            tmp.write(f"checkrom '{z}' || true\n")
+        tmp.write("stop_rom_db\n")
 
-    bash_script = "\n".join(lines) + "\n"
+    try:
+        log.info("Starting database and scanning in a single session...")
+        result = subprocess.run(
+            ["bash", str(tmp_path)],
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
-    log.info("Starting database and scanning in a single session...")
-    result = subprocess.run(
-        ["bash", "-c", bash_script],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0 and "===DB_READY===" not in (result.stdout or ""):
+    output = result.stdout or ""
+    if result.returncode != 0 and "===DB_READY===" not in output:
         raise RuntimeError(f"Daemon session failed:\n{result.stderr or result.stdout}")
 
     # Parse output
-    output = result.stdout or ""
-    sections = output.split("===CHECK===")
-    # sections[0] is the DB_READY part
     results: dict[str, str] = {}
-    for section in sections[1:]:
+    for section in output.split("===CHECK==="):
         if "===" not in section:
             continue
         name, _, rest = section.partition("===")
-        name = name.strip()
-        text = rest.strip()
-        results[name] = text
+        results[name.strip()] = rest.strip()
 
     with mover.open("w", encoding="utf-8") as script:
         script.write("#!/usr/bin/env bash\n")
@@ -99,7 +94,13 @@ def scan_with_daemon(
         for z in zips:
             text = results.get(z.name, "")
             lower = text.lower()
-            found = bool(text) and "not found" not in lower and "database not running" not in lower and "no match" not in lower
+            found = (
+                bool(text)
+                and "not found" not in lower
+                and "database not running" not in lower
+                and "no match" not in lower
+                and "unknown" not in lower
+            )
             if found:
                 log.info("%s -> %s", z.name, text.splitlines()[0] if text else "OK")
             else:
