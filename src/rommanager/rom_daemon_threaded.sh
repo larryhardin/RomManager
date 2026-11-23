@@ -86,7 +86,7 @@ start_rom_db() {
 
 checkrom() {
     local target="$1"
-    if [[ -z "$ROM_DB_PID" ]]; then
+    if [[ -z "${ROM_DB_PID:-}" ]]; then
         echo "Database not running. Run: start_rom_db ./mame0288.xml"
         return 1
     fi
@@ -126,7 +126,7 @@ checkrom() {
 }
 
 stop_rom_db() {
-    if [[ -n "$ROM_DB_PID" ]]; then
+    if [[ -n "${ROM_DB_PID:-}" ]]; then
         local fd_in="${ROM_DB[1]}"
         local fd_out="${ROM_DB[0]}"
         [[ -n "$fd_in" ]] && eval "exec ${fd_in}>&-" 2>/dev/null
