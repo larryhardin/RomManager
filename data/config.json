@@ -1,0 +1,6 @@
+{
+  "mame": {
+    "roms_directory": "",
+    "xml_database": "data/MAME/XML/mame_728_0.289.xml"
+  }
+}
